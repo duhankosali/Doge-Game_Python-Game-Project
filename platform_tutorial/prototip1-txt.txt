@@ -1,0 +1,220 @@
+"""
+Platformer Game
+"""
+import arcade
+
+# Constant variable
+
+# Pencere değişkenleri
+SCREEN_WIDTH = 1000
+SCREEN_HEIGHT = 650
+SCREEN_TITLE = "Doge Game"
+
+# Spritelarımızın boyutları
+CHARACTER_SCALING = 0.90
+TILE_SCALING = 0.5
+COIN_SCALING = 0.25
+
+# Karakter hareket hızları
+PLAYER_MOVEMENT_SPEED = 10
+GRAVITY = 1.5
+PLAYER_JUMP_SPEED = 20
+
+# Viewport Margin (Görüntü Alanı) Scrolling ayarları
+LEFT_VIEWPORT_MARGIN = 250
+RIGHT_VIEWPORT_MARGIN = 250
+BOTTOM_VIEWPORT_MARGIN = 100
+TOP_VIEWPORT_MARGIN = 100
+
+
+class MyGame(arcade.Window):
+    """
+    Main application class.
+    """
+
+    def __init__(self):
+
+        # Pencere Ayarları
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
+
+        # Spritelarımızın list fonksiyonları
+        self.coin_list = None
+        self.wall_list = None
+        self.player_list = None
+
+        # Karakter görüntümüz
+        self.player_sprite = None
+
+        #  physics engine fonksiyonumuz
+        self.physics_engine = None
+
+        # Scrolling ayarları yani Viewport Margin değişkenleri
+        self.view_bottom = 0
+        self.view_left = 0
+
+        # Oyun Skoru tutucu
+        self.score = 0
+
+        # Ses dosyaları
+        self.collect_coin_sound = arcade.load_sound(":resources:sounds/coin1.wav")
+        self.jump_sound = arcade.load_sound(":resources:sounds/jump1.wav")
+
+        arcade.set_background_color(arcade.csscolor.CORNFLOWER_BLUE) # Oyunumuzun arka plan rengi
+
+    def setup(self):
+        """ Set up the game here. Call this function to restart the game. """
+
+        # Scrolling ayarları yani Viewport Margin değişkenleri
+        self.view_bottom = 0
+        self.view_left = 0
+
+        # Oyun Skoru tutucu
+        self.score = 0 # Her coin topladığımız 1 artacak.
+
+        # Sprite listelerimizi oluşturduk
+        self.player_list = arcade.SpriteList()
+        self.wall_list = arcade.SpriteList()
+        self.coin_list = arcade.SpriteList()
+
+        # Karakterimizin dosya yolu ve haritamızda başlayacağı konum
+        image_source = "C:/Users/duhan/Desktop/ÜNİVERSİTE/BEYKOZ/Beykoz2 Dönem2/Mühendislik Projesi 2/platform_tutorial/yuruyendogem.png"
+        self.player_sprite = arcade.Sprite(image_source, CHARACTER_SCALING)
+        self.player_sprite.center_x = 128
+        self.player_sprite.center_y = 128
+        self.player_list.append(self.player_sprite)
+
+        # --- Tiled Map ile oluşturduğumuz haritayı oyunumuza yükleyelim ---
+
+        # Harita dosyamızın yolu
+        map_name = "C:/Users/duhan/Desktop/ÜNİVERSİTE/BEYKOZ/Beykoz2 Dönem2/Mühendislik Projesi 2/platform_tutorial/map.tmx"
+        # Dosyada platformumuzu içeren katmanın adı
+        platforms_layer_name = 'Platforms'
+        # Dosyada Coinimizi içeren katmanın adı
+        coins_layer_name = 'DogeCoin'
+
+        # Tiled map dosyamızı okuyacak bir değişken oluşturuyoruz.
+        my_map = arcade.tilemap.read_tmx(map_name)
+
+        # -- Platform
+        self.wall_list = arcade.tilemap.process_layer(map_object=my_map,
+                                                      layer_name=platforms_layer_name,
+                                                      scaling=TILE_SCALING,
+                                                      use_spatial_hash=True)
+
+        # -- Coin
+        self.coin_list = arcade.tilemap.process_layer(my_map, coins_layer_name, TILE_SCALING)
+
+        # ----------------------------
+        # Arkaplan rengi ataması
+        if my_map.background_color:
+            arcade.set_background_color(my_map.background_color)
+
+        # Physics Engine'nin oluşturulması
+        self.physics_engine = arcade.PhysicsEnginePlatformer(self.player_sprite,
+                                                             self.wall_list,
+                                                             GRAVITY)
+
+    def on_draw(self): # Draw --> Çizim
+        """ Render the screen. """
+
+        # Oyunda hareket gerçekleştikçe arka planın temizlenmesini sağlar.
+        arcade.start_render()
+
+        # Spritelarımızın haritada gözükmesini sağlar.
+        self.wall_list.draw()
+        self.coin_list.draw()
+        self.player_list.draw()
+
+        # Skorumuzun tutan barın çizimi ve Scrolling ayarları
+        score_text = f"Doge Coin: {self.score}"
+        arcade.draw_text(score_text, 10 + self.view_left, 10 + self.view_bottom,
+                         arcade.csscolor.BLACK, 18)
+
+    def on_key_press(self, key, modifiers):
+        """Called whenever a key is pressed. """
+
+        if key == arcade.key.UP or key == arcade.key.W or key == arcade.key.SPACE:
+            if self.physics_engine.can_jump():
+                self.player_sprite.change_y = PLAYER_JUMP_SPEED
+                arcade.play_sound(self.jump_sound)
+        elif key == arcade.key.LEFT or key == arcade.key.A:
+            self.player_sprite.change_x = -PLAYER_MOVEMENT_SPEED
+        elif key == arcade.key.RIGHT or key == arcade.key.D:
+            self.player_sprite.change_x = PLAYER_MOVEMENT_SPEED
+
+    def on_key_release(self, key, modifiers):
+        """Called when the user releases a key. """
+
+        if key == arcade.key.LEFT or key == arcade.key.A:
+            self.player_sprite.change_x = 0
+        elif key == arcade.key.RIGHT or key == arcade.key.D:
+            self.player_sprite.change_x = 0
+
+    def on_update(self, delta_time):
+        """ Movement and game logic """
+
+        # Oyuncuyu Physics Engine ile hareket ettirir
+        self.physics_engine.update()
+
+        # Coinlere çarpmamızı engeller
+        coin_hit_list = arcade.check_for_collision_with_list(self.player_sprite,
+                                                             self.coin_list)
+
+        # Topladığımız Coinlerin yok olmasını sağlar
+        for coin in coin_hit_list:
+            # Toplanın Coini sil
+            coin.remove_from_sprite_lists()
+            # Ses efektlerinin çalmasını sağlıyor.
+            arcade.play_sound(self.collect_coin_sound)
+            # Her coin toplandığında 1 artıyor.
+            self.score += 1
+
+
+        # --- Scrolling Yönetimi ---
+
+        changed = False
+
+        # Scroll left
+        left_boundary = self.view_left + LEFT_VIEWPORT_MARGIN
+        if self.player_sprite.left < left_boundary:
+            self.view_left -= left_boundary - self.player_sprite.left
+            changed = True
+
+        # Scroll right
+        right_boundary = self.view_left + SCREEN_WIDTH - RIGHT_VIEWPORT_MARGIN
+        if self.player_sprite.right > right_boundary:
+            self.view_left += self.player_sprite.right - right_boundary
+            changed = True
+
+        # Scroll up
+        top_boundary = self.view_bottom + SCREEN_HEIGHT - TOP_VIEWPORT_MARGIN
+        if self.player_sprite.top > top_boundary:
+            self.view_bottom += self.player_sprite.top - top_boundary
+            changed = True
+
+        # Scroll down
+        bottom_boundary = self.view_bottom + BOTTOM_VIEWPORT_MARGIN
+        if self.player_sprite.bottom < bottom_boundary:
+            self.view_bottom -= bottom_boundary - self.player_sprite.bottom
+            changed = True
+
+        if changed:
+            self.view_bottom = int(self.view_bottom)
+            self.view_left = int(self.view_left)
+
+            # Do the scrolling
+            arcade.set_viewport(self.view_left,
+                                SCREEN_WIDTH + self.view_left,
+                                self.view_bottom,
+                                SCREEN_HEIGHT + self.view_bottom)
+
+
+def main():
+    """ Main method """
+    window = MyGame()
+    window.setup()
+    arcade.run()
+
+
+if __name__ == "__main__":
+    main()
